@@ -14,7 +14,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 
 from langchain_community.vectorstores import FAISS
 from langchain_ollama import OllamaEmbeddings
-
+import impact
 
 
 # Load the existing index from disk (32GB RAM makes this instant)
@@ -46,7 +46,7 @@ model = ChatOllama(model="gemma4:e4b" ,
                     temperature=0,num_ctx=8192)
 
 # Initialize Embeddings (must match the processor)
-embeddings = OllamaEmbeddings(model="embeddinggemma:300m")
+embeddings = OllamaEmbeddings(model="embeddinggemma:latest")
 # r=model.invoke("What is Capital of India ?").content
 vectorstore = FAISS.load_local(
     "faiss_db2zparm_index", 
@@ -146,7 +146,33 @@ def db2_rag_tool(query: str):
         'metadata' : metadata
     }
 
-tools=[authidtool , clientaccttool ,fullresponsetool ,getzparmvaluetool ,getzparm_alltool,list_monitored_Db2tool , db2_rag_tool ,comparezparm_tool]
+@tool()
+def get_relationships_tool(node : str):
+    '''
+    Purpose :
+    Takes zparm as input find its relation with the effect it can cause.
+    '''
+    return impact.get_direct_impacts(node)
+
+@tool()
+def get_impact_chain_tool(node : str):
+    '''
+    Purpose :
+    Takes zparm as input and reasons out complete Impact it can cause.
+    '''
+    return impact.get_impact_chain(node)
+
+@tool()
+def find_relationship_tool(node1 : str , node2 : str ):
+    '''
+    Purpose :
+    Takes two input and tries to find the relationship between them.
+    '''
+    return impact.find_path(node1,node2)
+
+tools=[authidtool , clientaccttool ,fullresponsetool ,getzparmvaluetool ,  
+       get_relationships_tool , get_impact_chain_tool ,find_relationship_tool ,
+       getzparm_alltool,list_monitored_Db2tool , db2_rag_tool ,comparezparm_tool]
 
 model_with_tools = model.bind_tools(tools)
 
