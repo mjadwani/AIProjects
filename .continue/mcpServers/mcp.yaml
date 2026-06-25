@@ -1,0 +1,7 @@
+  monitoring:
+    type: stdio
+    command: uv
+    args:
+      - run
+      - python
+      - mcp-demo/server.py

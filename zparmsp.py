@@ -1,0 +1,290 @@
+import requests
+from dotenv import load_dotenv
+import json
+import os
+import pandas as pd
+import lstdb2
+
+load_dotenv()
+
+password=os.getenv("PASSWORD")
+user=os.getenv("USER")
+hostname=os.getenv("hostname")
+port=os.getenv("port")
+ipaddr=os.getenv("ipaddr")
+serviceName = os.getenv("serviceName")
+# print(serviceName)
+product = os.getenv("product")
+views = os.getenv("views_zparmsp")
+context = os.getenv("context")
+craport = os.getenv("craport")
+host_name = hostname
+port_num = craport
+serviceName =  serviceName 
+
+def login(url_link : str , service_name: str ) -> any :
+    login_service_api = "serviceGateway/services/"+service_name+"/login"
+    login_url = url_link + login_service_api
+    # print(login_url)
+    data = { "username":f"{user}","password":f"{password}"}
+    # params = {"serviceName" : service_name }
+    headers = {"Accept":"application/json",
+               "Content-Type": "application/json; charset=utf-8"}
+    r = requests.post(login_url,
+                      json=data,
+                      headers=headers
+                      )
+        
+    if r.status_code == 200:
+        # print(r.json())
+        return r.json()
+    else:
+        return r.status_code
+
+def build_url(url_link : str , #service_name: str , 
+                   productName : str ,views :str
+                  
+                  ) -> any:
+    
+    # url_endpoint =[]
+    get_data_view_api = "serviceGateway/services"+\
+                "/products/"+productName+"/views/"+views+"/data"
+    url_endpoint = url_link + get_data_view_api
+    
+    return url_endpoint
+
+def get_data_view(get_data_url : str , token : str , context: str,startRow :int ,rows: int,) -> any:
+    
+    params ={
+        "context":context,
+        "server": "*",
+        "system" : "*",
+        "scope" : "*",
+        "period" : "=",
+        "startRow": startRow,
+        "rows":rows,
+        "refresh":"Y",
+        "close":"Y",
+        "filter":"null",
+        "sort":"null",
+        "session":"null"
+
+    }
+    headers = {"Accept":"application/json",
+               "Authorization":"Bearer "+token ,
+               "Content-Type": "application/json; charset=utf-8"}
+    
+    # for get_data_url in url_endpoint:
+    # print(get_data_url)
+    r = requests.get(get_data_url,
+                        params=params,
+                        headers=headers,
+                        stream= True
+                        )
+        # print(r.request.url)
+        # print(r.status_code)
+        # print(r.json())
+    if r.status_code ==200:
+        # with open("temp.json",'wb') as f:
+        #     for each in r.iter_content(chunk_size=512):
+        #         if each:
+        #             f.write(each)
+            
+        # return "All good"
+
+    
+        return r.json()
+    else:
+        r.status_code
+
+def getzparm_value(checkzparm : str ,context : str ):
+    
+    
+  
+    url_link="http://"+host_name+":"+port_num+"/cra/"
+    # product = product
+    # views = views
+    # print(build_url(url_link,product,views))
+    url_endpoint = build_url(url_link,product,views)
+    # db2_monitored=["DMU1DB2A","DNK3","DECD","DLK1"]
+    db2_monitored = lstdb2.list_monitored_Db2("CURRSYS")
+    context = get_target(db2_monitored,context)
+    if context == "NotFound":
+        return f"Only following Db2 targets {db2_monitored} are monitored. Select one of this."
+    
+    # context = context
+    res_userToken =  login(url_link,serviceName)
+    # print(res_userToken) 
+        
+    text = get_data_view(url_endpoint,res_userToken["userToken"],context,startRow=1,rows=99999)
+
+    if "error" in text.keys():
+        # print(text['error'])
+        return (f"api error:  {(text['error'])}")
+
+    for x in text['Rows']:
+        if x['Y400PRMN'] == checkzparm :
+            return(mappingfunction(x))
+
+
+def mappingfunction(some_dict :dict):
+    mapping={
+        "Y400PRMN": "zparm_name" ,
+        "Y400ZVAL" : "zparm_value",
+        "Y400PANL" : "panel name on Db2 install clist" ,
+        "Y400INFO" : "online update allowed" ,
+        "Y400MACN" : "db2 macro name",
+        "Y4DB2ID": "db2 ssid",
+    }
+    mapped_response ={}
+    for key in mapping.keys() :
+        mapped_response[mapping[key]] = some_dict[key]
+    return mapped_response
+
+# mappingfunction(some_dict)
+# print(mappingfunction(some_dict))
+
+
+
+
+
+
+
+
+
+
+
+
+def getzparm_all(context : str ):
+    
+    
+  
+    url_link="http://"+host_name+":"+port_num+"/cra/"
+    # product = product
+    # views = views
+    # print(build_url(url_link,product,views))
+    url_endpoint = build_url(url_link,product,views)
+    db2_monitored=["DMU1DB2A","DNK3","DECD","DLK1"]
+    if context not in db2_monitored:
+        return f"Only following Db2 targets {db2_monitored} are monitored. Select one of this."
+    
+    context = context
+    res_userToken =  login(url_link,serviceName)
+    # print(res_userToken) 
+        
+    text = get_data_view(url_endpoint,res_userToken["userToken"],context,startRow=1,rows=99999)
+
+    if "error" in text.keys():
+        # print(text['error'])
+        return (f"api error:  {(text['error'])}")
+
+    zparm_config = {}
+    for x in text['Rows']:
+        # if x['Y400PRMN'] == checkzparm :
+        #     return(x)  
+        key = x['Y400PRMN']     
+        zparm_config[key] = (x['Y400ZVAL'],x['Y400MACN'])
+    #return zparm_config
+    df = pd.DataFrame.from_dict(zparm_config, orient='index')
+    df.columns = ['zparm_value','macro_name']
+    df.to_csv('zparmlist.csv',index=True)
+    return f"csv list created {df.index.count}"
+
+def get_target(listdb2 : list , chkdb2 : str) -> str:
+    db2found = False
+    for x in listdb2:
+        if (chkdb2.lower() == x['db2_ssid'].lower() or chkdb2.lower() == x['target_context'].lower()):
+            db2found=True
+            return x['target_context']
+    if db2found == False :
+        return "NotFound"
+
+
+def zparm_compare (context_list : list ):
+    
+    
+    # print(context)
+    url_link="http://"+host_name+":"+port_num+"/cra/"
+    # product = product
+    # views = views
+    # print(build_url(url_link,product,views))
+    url_endpoint = build_url(url_link,product,views)
+    # db2_monitored=["DMU1DB2A","DNK3","DECD","DLK1"]
+    db2_monitored = lstdb2.list_monitored_Db2("CURRSYS")
+    # print(db2_monitored)
+    zparm_config_list =[]
+    for cx in context_list :
+
+        context = get_target(db2_monitored,cx)
+        
+        if context == "NotFound":
+            return f"Only following Db2 targets {db2_monitored} are monitored. Select one of this."
+        
+        res_userToken =  login(url_link,serviceName)
+        # print(res_userToken) 
+            
+        text = get_data_view(url_endpoint,res_userToken["userToken"],context,startRow=1,rows=99999)
+
+        if "error" in text.keys():
+            # print(text['error'])
+            return (f"api error:  {(text['error'])}")
+
+        zparm_config = {}
+        for x in text['Rows']:
+            # if x['Y400PRMN'] == checkzparm :
+            #     return(x)  
+            key = x['Y400PRMN']     
+            zparm_config[key] = [x['Y400ZVAL'],x['Y400MACN'],x['Y4DB2ID']]
+        #return zparm_config
+        # df = pd.DataFrame.from_dict(zparm_config, orient='index')
+        # df.columns = ['zparm_value','macro_name']
+        # df.to_csv(f'zparmlist_{cx}.csv',index=True)
+        # frame_count = len(df.index.to_list())
+        # print(f"csv list created {frame_count} for {cx}")
+        zparm_config_list.append(zparm_config) 
+    non_match=[] ; non_exist=[]
+    for x in zparm_config_list[0].keys():
+        if x in zparm_config_list[1] :
+            if (zparm_config_list[0][x][0] != zparm_config_list[1][x][0]) :
+                # print(zparm_config_list[0][x])
+                # print(zparm_config_list[1][x])
+                non_match.append([x,zparm_config_list[0][x][-1],zparm_config_list[0][x][0],zparm_config_list[1][x][-1],zparm_config_list[1][x][0]])
+        else :
+            non_exist.append([x,zparm_config_list[0][x]])
+
+
+
+    return {"non_matching_zparm" : non_match ,"non_exist_zparm" :non_exist}
+if __name__ == "__main__":
+    checkzparm="SYSADM2"
+    context="DNK3"
+    print(getzparm_value(checkzparm,context))
+    print(getzparm_value(checkzparm,"DMUX"))
+    # print(getzparm_all(context))
+    # print(zparm_compare(['DNK3','DMU1DB2A']))
+    # print(zparm_compare(['DNK3','DMUX']))
+
+
+#     zparmvalue(checkzparm)
+    
+    # host_name = hostname
+    # port_num = craport
+    # serviceName =  serviceName
+  
+    # url_link="http://"+host_name+":"+port_num+"/cra/"
+    # product = product
+    # views = views
+    # print(build_url(url_link,product,views))
+    # url_endpoint = build_url(url_link,product,views)
+    # context = context
+    # res_userToken =  login(url_link,serviceName)
+    # print(res_userToken) 
+        
+    # text = get_data_view(url_endpoint,res_userToken["userToken"],context,startRow=1,rows=99999)
+
+    # print(text['Rows'][0])
+
+    # for x in text['Rows']:
+    #     if x['Y400PRMN'] == 'ABIND':
+    #         print(x)
+

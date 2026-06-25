@@ -1,0 +1,7 @@
+{
+  "dependencies": ["."],
+  "graphs": {
+    "local_agent": "./pragent.py:PRACagent"
+  },
+  "env": ".env"
+}
