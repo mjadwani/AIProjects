@@ -19,4 +19,4 @@ To run zparm agent
 uv run ./firstlang.py
 
 To execute db2accounting agent
-uv run streamlit run ./db2reportproject/frontend.py
+uv run streamlit run ./db2reportproject/frontend.py  (You will have a Streamlit UI)
