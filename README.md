@@ -1,6 +1,6 @@
 # Project Name
 Some projects which can be found in this repo
-- zparm agent under ./  invoke firstlang.py
+- zparm agent under ./  invoke myfirstlang.py
 - db2accounting agent under ./db2reportproject
   
 ## What it does
@@ -16,7 +16,7 @@ uv sync
 
 ## Run
 To run zparm agent
-uv run ./firstlang.py
+uv run ./myfirstlang.py
 
 To execute db2accounting agent
 uv run streamlit run ./db2reportproject/frontend.py  (You will have a Streamlit UI)
